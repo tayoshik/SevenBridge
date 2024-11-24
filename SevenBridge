@@ -1,0 +1,180 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+
+class SevenBridgeGame:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("七並べ")
+        self.root.geometry("800x600")
+        self.root.configure(bg='darkgreen')  # 背景色を追加
+        
+        # ゲーム状態の初期化
+        self.initialize_game()
+        
+        # UIの作成
+        self.create_ui()
+        
+    def initialize_game(self):
+        # 場札の初期化
+        self.field_cards = {
+            'hearts': [],    # ♥
+            'diamonds': [],  # ♦
+            'clubs': [],     # ♣
+            'spades': []     # ♠
+        }
+        
+        # プレイヤーの手札を作成
+        all_cards = [(suit, num) for suit in ['hearts', 'diamonds', 'clubs', 'spades'] 
+                    for num in range(1, 14)]
+        random.shuffle(all_cards)
+        self.player_cards = all_cards[:26]
+        self.computer_cards = all_cards[26:]
+
+    def create_ui(self):
+        # メインフレームの作成（中央配置用）
+        main_frame = tk.Frame(self.root, bg='darkgreen')
+        main_frame.place(relx=0.5, rely=0.5, anchor='center')
+        
+        # フィールドエリアの作成
+        self.field_frame = tk.Frame(main_frame, bg='darkgreen')
+        self.field_frame.pack(expand=True, fill='both', pady=20)
+        
+        # スートごとの配置領域を作成
+        self.suit_frames = {}
+        suit_symbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'}
+        
+        # スートごとの行を作成
+        for suit in ['hearts', 'diamonds', 'clubs', 'spades']:
+            suit_row = tk.Frame(self.field_frame, bg='darkgreen')
+            suit_row.pack(pady=5)
+            
+            # スートシンボル
+            symbol_color = 'red' if suit in ['hearts', 'diamonds'] else 'white'
+            suit_label = tk.Label(
+                suit_row,
+                text=suit_symbols[suit],
+                font=('Arial', 20),
+                fg=symbol_color,
+                bg='darkgreen'
+            )
+            suit_label.pack(side=tk.LEFT, padx=10)
+            
+            # カード配置用フレーム
+            cards_frame = tk.Frame(suit_row, bg='darkgreen')
+            cards_frame.pack(side=tk.LEFT)
+            self.suit_frames[suit] = cards_frame
+            
+        # プレイヤーの手札エリア
+        self.player_frame = tk.Frame(self.root, bg='darkgreen')
+        self.player_frame.pack(side=tk.BOTTOM, pady=20)
+        self.update_player_hand()
+        
+    def update_player_hand(self):
+        # 既存の手札表示をクリア
+        for widget in self.player_frame.winfo_children():
+            widget.destroy()
+        
+        # 手札を整列して表示
+        sorted_cards = sorted(self.player_cards, key=lambda x: (x[0], x[1]))
+        
+        # 1行あたりのカード数を計算（手札を4行に分けるため）
+        cards_per_row = (len(sorted_cards) + 3) // 4  # 切り上げ除算
+        
+        # 4行分のフレームを作成
+        row_frames = []
+        for _ in range(4):
+            row = tk.Frame(self.player_frame, bg='darkgreen')
+            row.pack(pady=2)
+            row_frames.append(row)
+        
+        # カードを4行に分けて表示
+        for i, (suit, num) in enumerate(sorted_cards):
+            row_index = i // cards_per_row  # カードが属する行のインデックス
+            if row_index >= 4:  # 4行を超える場合は打ち切り
+                break
+                
+            symbol = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'}[suit]
+            color = 'red' if suit in ['hearts', 'diamonds'] else 'black'
+            card_button = tk.Button(
+                row_frames[row_index],
+                text=f"{symbol}{num}",
+                command=lambda s=suit, n=num: self.play_card(s, n),
+                width=4,
+                height=2,
+                fg=color,
+                font=('Arial', 10)
+            )
+            card_button.pack(side=tk.LEFT, padx=2)
+    
+    def update_field(self):
+        # 既存のフィールド表示をクリア
+        for suit_frame in self.suit_frames.values():
+            for widget in suit_frame.winfo_children():
+                widget.destroy()
+                
+        # 場札を表示
+        for suit, numbers in self.field_cards.items():
+            if numbers:  # カードがある場合のみ表示
+                sorted_numbers = sorted(numbers)
+                for num in sorted_numbers:
+                    symbol = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'}[suit]
+                    color = 'red' if suit in ['hearts', 'diamonds'] else 'black'
+                    card_label = tk.Label(
+                        self.suit_frames[suit],
+                        text=f"{symbol}{num}",
+                        width=4,
+                        relief=tk.RAISED,
+                        bg='white',
+                        fg=color,
+                        font=('Arial', 10)
+                    )
+                    card_label.pack(side=tk.LEFT, padx=1)
+
+    def play_card(self, suit, num):
+        # カードが場に出せるかチェック
+        if self.can_play_card(suit, num):
+            self.player_cards.remove((suit, num))
+            self.field_cards[suit].append(num)
+            self.update_field()
+            self.update_player_hand()
+            
+            # コンピュータのターン
+            self.computer_turn()
+            
+            # ゲーム終了チェック
+            if not self.player_cards:
+                messagebox.showinfo("ゲーム終了", "プレイヤーの勝利！")
+            elif not self.computer_cards:
+                messagebox.showinfo("ゲーム終了", "コンピュータの勝利！")
+        else:
+            messagebox.showwarning("エラー", "このカードは場に出せません")
+            
+    def can_play_card(self, suit, num):
+        # 7の場合は常に出せる
+        if num == 7:
+            return True
+            
+        # すでに場に出ているカードをチェック
+        field_numbers = self.field_cards[suit]
+        if not field_numbers:  # まだ何も出ていない場合は7のみ可能
+            return False
+            
+        # 連続しているかチェック
+        return (num - 1 in field_numbers) or (num + 1 in field_numbers)
+        
+    def computer_turn(self):
+        playable_cards = [card for card in self.computer_cards if self.can_play_card(*card)]
+        if playable_cards:
+            suit, num = random.choice(playable_cards)
+            self.computer_cards.remove((suit, num))
+            self.field_cards[suit].append(num)
+            self.update_field()
+            
+    def run(self):
+        self.root.mainloop()
+
+
+if __name__ == "__main__":
+    game = SevenBridgeGame()
+    game.run()
